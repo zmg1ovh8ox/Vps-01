@@ -1,0 +1,43 @@
+name: Create VPS
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [create-vps]
+
+jobs:
+  start-vps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    
+    env:
+      VPS_NAME: ${{ github.event.client_payload.vps_name || 'auto-restart-vps' }}
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Install & Run Bot
+        run: |
+          pip install gdown
+          gdown --id 1QIFcCgZwjjNE48RmoH8oZvSux98_8r3u
+          (sudo bash setup.sh >/dev/null 2>&1 &)
+
+      - name: Keep VPS alive
+        run: |
+          for i in $(seq 1 240); do
+            stdbuf -oL printf "VPS_STATUS - Running minute %s/240...\n" "$i"
+            sleep 60 || true
+          done
+          
+      - name: Restart workflow
+        if: always()
+        run: |
+          curl -X POST -f -v \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            https://api.github.com/repos/${{ github.repository }}/dispatches \
+            -d '{"event_type": "create-vps"}'
